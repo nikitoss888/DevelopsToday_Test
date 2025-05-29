@@ -1,0 +1,7 @@
+sqlalchemy
+pydantic
+sqlmodel
+fastapi
+typing
+httpx
+uvicorn

@@ -1,9 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session, select
 from .database import create_db_and_tables, get_session
-from .models import SpyCat, SpyCatModel, Mission, MissionModel, MissionModelCreate, \
-    Target, TargetModel, TargetModelCreate, Note, NoteModel, \
-        breed_validate, spycat_validate, target_validate, note_validate
+from .models import \
+    SpyCat, SpyCatModel, SpyCatModelRead, \
+    Mission, MissionModel, MissionModelCreate, MissionModelRead, \
+    Target, TargetModel, TargetModelCreate, TargetModelRead, \
+    Note, NoteModel, NoteModelRead, \
+    breed_validate, spycat_validate, target_validate, note_validate
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -14,6 +17,12 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+def read_root():
+    """Root endpoint."""
+    return {"message": "Welcome to the SpyCat API!"}
 
 # SpyCat endpoints
 @app.post("/spycat/", response_model=SpyCat)
@@ -31,16 +40,19 @@ async def create_spycat(spycat: SpyCat, session: Session = Depends(get_session))
     
     return spycat
 
-@app.get("/spycat/{spycat_id}", response_model=SpyCat)
+@app.get("/spycat/{spycat_id}", response_model=SpyCatModelRead)
 async def read_spycat(spycat_id: int, session: Session = Depends(get_session)):
     """Read a spy cat by ID."""
     spycat = session.get(SpyCat, spycat_id)
     if not spycat:
         raise HTTPException(status_code=404, detail="Spy Cat not found")
-    
-    return spycat
 
-@app.get("/spycat/", response_model=list[SpyCat])
+    return {
+        **spycat.model_dump(),
+        "missions": spycat.missions
+    }
+
+@app.get("/spycat/", response_model=list[SpyCatModel])
 async def read_spycats(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all spy cats with pagination."""
     statement = select(SpyCat).offset(skip).limit(limit)
@@ -55,7 +67,6 @@ async def update_spycat(spycat_id: int, spycat: SpyCatModel, session: Session = 
 
     if not existing_spycat:
         raise HTTPException(status_code=404, detail="Spy Cat not found")
-    
     
     if not await breed_validate(spycat.breed):
         raise HTTPException(status_code=400, detail="Invalid breed")
@@ -124,23 +135,33 @@ async def create_mission(mission: MissionModelCreate, session: Session = Depends
     
     return db_mission
 
-@app.get("/mission/{mission_id}", response_model=Mission)
+@app.get("/mission/{mission_id}", response_model=MissionModelRead)
 async def read_mission(mission_id: int, session: Session = Depends(get_session)):
     """Read a mission by ID."""
     mission = session.get(Mission, mission_id)
     
     if not mission:
         raise HTTPException(status_code=404, detail="Mission not found")
-    
-    return mission
 
-@app.get("/mission/", response_model=list[Mission])
+    return {
+        **mission.model_dump(),
+        "cat": mission.cat,
+        "targets": mission.targets
+    }
+
+@app.get("/mission/", response_model=list[MissionModelRead])
 async def read_missions(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all missions with pagination."""
     statement = select(Mission).offset(skip).limit(limit)
     missions = session.exec(statement).all()
-    
-    return missions
+
+    return [
+        {
+            **mission.model_dump(),
+            "cat": mission.cat
+        }
+        for mission in missions
+    ]
 
 @app.put("/mission/{mission_id}", response_model=Mission)
 async def update_mission(mission_id: int, mission: MissionModel, session: Session = Depends(get_session)):
@@ -215,19 +236,6 @@ async def create_target(mission_id: int, target: TargetModelCreate, session: Ses
 
     return db_target
 
-@app.get("/mission/{mission_id}/target/{target_id}", response_model=Target)
-async def read_target(mission_id: int, target_id: int, session: Session = Depends(get_session)):
-    """Read a target by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
-    target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
-        raise HTTPException(status_code=404, detail="Target not found")
-
-    return target
-
 @app.get("/mission/{mission_id}/target/", response_model=list[Target])
 async def read_targets(mission_id: int, skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all targets for a mission with pagination."""
@@ -237,15 +245,24 @@ async def read_targets(mission_id: int, skip: int = 0, limit: int = 10, session:
 
     return mission.targets[skip:skip + limit]
 
-@app.put("/mission/{mission_id}/target/{target_id}", response_model=Target)
-async def update_target(mission_id: int, target_id: int, target: TargetModel, session: Session = Depends(get_session)):
-    """Update a target by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
+@app.get("/target/{target_id}", response_model=TargetModelRead)
+async def read_target(target_id: int, session: Session = Depends(get_session)):
+    """Read a target by ID."""
+    target = session.get(Target, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
 
+    return {
+        **target.model_dump(),
+        "mission": target.mission,
+        "notes": target.notes
+    }
+
+@app.put("/target/{target_id}", response_model=Target)
+async def update_target(target_id: int, target: TargetModel, session: Session = Depends(get_session)):
+    """Update a target by ID."""
     existing_target = session.get(Target, target_id)
-    if not existing_target or existing_target not in mission.targets:
+    if not existing_target:
         raise HTTPException(status_code=404, detail="Target not found")
 
     existing_target.name = target.name
@@ -261,15 +278,11 @@ async def update_target(mission_id: int, target_id: int, target: TargetModel, se
 
     return existing_target
 
-@app.delete("/mission/{mission_id}/target/{target_id}", response_model=Target)
-async def delete_target(mission_id: int, target_id: int, session: Session = Depends(get_session)):
+@app.delete("/target/{target_id}", response_model=Target)
+async def delete_target(target_id: int, session: Session = Depends(get_session)):
     """Delete a target by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
     target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
+    if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
     session.delete(target)
@@ -278,25 +291,19 @@ async def delete_target(mission_id: int, target_id: int, session: Session = Depe
     return target
 
 
-@app.post("/mission/{mission_id}/target/{target_id}/note/", response_model=Note)
-async def create_note(
-    mission_id: int, target_id: int, note: NoteModel, session: Session = Depends(get_session)
-):
+@app.post("/target/{target_id}/note/", response_model=Note)
+async def create_note(target_id: int, note: NoteModel, session: Session = Depends(get_session)):
     """Create a new note for a target."""
     if not note.content:
         raise HTTPException(status_code=400, detail="Note content is required")
 
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
     target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
+    if not target:
         raise HTTPException(status_code=404, detail="Target not found")
-    
-    if mission.is_complete:
+
+    if target.mission.is_complete:
         raise HTTPException(status_code=400, detail="Cannot add note to a completed mission")
-    
+
     if target.is_complete:
         raise HTTPException(status_code=400, detail="Cannot add note to a completed target")
 
@@ -313,70 +320,50 @@ async def create_note(
 
     return db_note
 
-@app.get("/mission/{mission_id}/target/{target_id}/note/{note_id}", response_model=Note)
-async def read_note(
-    mission_id: int, target_id: int, note_id: int, session: Session = Depends(get_session)
-):
-    """Read a note by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
-    target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
-        raise HTTPException(status_code=404, detail="Target not found")
-
-    note = session.get(Note, note_id)
-    if not note or note not in target.notes:
-        raise HTTPException(status_code=404, detail="Note not found")
-
-    return note
-
-@app.get("/mission/{mission_id}/target/{target_id}/note/", response_model=list[Note])
+@app.get("/target/{target_id}/note/", response_model=list[Note])
 async def read_notes(
-    mission_id: int, target_id: int, skip: int = 0, limit: int = 10, session: Session = Depends(get_session)
+    target_id: int, skip: int = 0, limit: int = 10, session: Session = Depends(get_session)
 ):
     """Read all notes for a target with pagination."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
     target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
+    if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
     return target.notes[skip:skip + limit]
 
-@app.put("/mission/{mission_id}/target/{target_id}/note/{note_id}", response_model=Note)
-async def update_note(
-    mission_id: int, target_id: int, note_id: int, note: NoteModel, session: Session = Depends(get_session)
+@app.get("/note/{note_id}", response_model=NoteModelRead)
+async def read_note(
+    note_id: int, session: Session = Depends(get_session)
 ):
-    """Update a note by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
-    target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
-        raise HTTPException(status_code=404, detail="Target not found")
-
-    existing_note = session.get(Note, note_id)
-    if not existing_note or existing_note not in target.notes:
+    """Read a note by ID."""
+    note = session.get(Note, note_id)
+    if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    if not note.content:
-        raise HTTPException(status_code=400, detail="Note content is required")
+    return {
+        **note.model_dump(),
+        "target": note.target,
+    }
+
+@app.put("/note/{note_id}", response_model=Note)
+async def update_note(
+    note_id: int, note: NoteModel, session: Session = Depends(get_session)
+):
+    """Update a note by ID."""
+    existing_note = session.get(Note, note_id)
+    if not existing_note:
+        raise HTTPException(status_code=404, detail="Note not found")
     
-    if mission.is_complete:
-        raise HTTPException(status_code=400, detail="Cannot update note for a completed mission")
-    
-    if target.is_complete:
+    if existing_note.target.is_complete:
         raise HTTPException(status_code=400, detail="Cannot update note for a completed target")
+    
+    if existing_note.target.mission.is_complete:
+        raise HTTPException(status_code=400, detail="Cannot update note for a completed mission")
 
     existing_note.content = note.content
 
     if not note_validate(existing_note):
-        raise HTTPException(status_code=400, detail="Invalid Note data")
+        raise HTTPException(status_code=400, detail="Note content is required")
 
     session.add(existing_note)
     session.commit()
@@ -384,21 +371,13 @@ async def update_note(
 
     return existing_note
 
-@app.delete("/mission/{mission_id}/target/{target_id}/note/{note_id}", response_model=Note)
+@app.delete("/note/{note_id}", response_model=Note)
 async def delete_note(
-    mission_id: int, target_id: int, note_id: int, session: Session = Depends(get_session)
+    note_id: int, session: Session = Depends(get_session)
 ):
     """Delete a note by ID."""
-    mission = session.get(Mission, mission_id)
-    if not mission:
-        raise HTTPException(status_code=404, detail="Mission not found")
-
-    target = session.get(Target, target_id)
-    if not target or target not in mission.targets:
-        raise HTTPException(status_code=404, detail="Target not found")
-
     note = session.get(Note, note_id)
-    if not note or note not in target.notes:
+    if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
     session.delete(note)

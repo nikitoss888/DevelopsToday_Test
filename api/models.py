@@ -16,10 +16,14 @@ class SpyCat(SQLModel, table=True):
 
 # Pydantic model for cat input validation
 class SpyCatModel(BaseModel):
+    id: Optional[int] = None
     name: str
     years_of_experience: int = 0
     breed: str
     salary: float = 0.0
+
+class SpyCatModelRead(SpyCatModel):
+    missions: Optional[list["MissionModel"]] = None
 
 async def breed_validate(breed: str) -> bool:
     async with httpx.AsyncClient() as client:
@@ -49,11 +53,15 @@ class Mission(SQLModel, table=True):
 
 # Pydantic model for mission input validation
 class MissionModel(BaseModel):
+    id: Optional[int] = None
     cat_id: Optional[int] = None
     is_complete: bool = False
 
 class MissionModelCreate(MissionModel):
     targets: Optional[list["TargetModel"]] = None
+
+class MissionModelRead(MissionModelCreate):
+    cat: Optional[SpyCatModel] = None
 
 
 # Target database model
@@ -69,12 +77,16 @@ class Target(SQLModel, table=True):
 
 # Pydantic model for target input validation
 class TargetModel(BaseModel):
+    id: Optional[int] = None
     name: str
     country: str
     is_complete: bool = False
 
 class TargetModelCreate(TargetModel):
     notes: Optional[list["NoteModel"]] = None
+
+class TargetModelRead(TargetModelCreate):
+    mission: Optional[MissionModel] = None
 
 def target_validate(target: Target) -> bool:
     if not target.name or not target.country:
@@ -91,8 +103,11 @@ class Note(SQLModel, table=True):
 
 # Pydantic model for note input validation
 class NoteModel(BaseModel):
-    target_id: Optional[int] = None
+    id: Optional[int] = None
     content: str
+
+class NoteModelRead(NoteModel):
+    target: Optional[TargetModel] = None
 
 def note_validate(note: Note) -> bool:
     if not note.content:

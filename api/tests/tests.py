@@ -190,6 +190,7 @@ def test_spycat_invalid_breed():
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid breed"}
 
+
 def test_mission_create():
     """Test creating a new mission."""
     
@@ -232,6 +233,12 @@ def test_mission_read():
     assert data["id"] == mission_id
     assert data["cat_id"] == obj_data["cat_id"]
     assert data["is_complete"] == obj_data["is_complete"]
+    assert "targets" in data
+    assert isinstance(data["targets"], list)
+    assert len(data["targets"]) == len(obj_data["targets"])
+    assert "cat" in data
+    assert data["cat"] is not None
+    assert data["cat"]["id"] == obj_data["cat_id"]
 
 def test_mission_read_all():
     """Test reading all missions with pagination."""
@@ -239,11 +246,7 @@ def test_mission_read_all():
 
     obj_data = {
         "cat_id": 1,
-        "is_complete": False,
-        "targets": [
-            {"name": "Target1", "country": "Country1", "is_complete": False},
-            {"name": "Target2", "country": "Country2", "is_complete": False}
-        ]
+        "is_complete": False
     }
 
     for _ in range(num):
@@ -258,7 +261,11 @@ def test_mission_read_all():
     for mission in data:
         assert "id" in mission
         assert "cat_id" in mission
+        assert mission["cat_id"] == obj_data["cat_id"]
         assert "is_complete" in mission
+        assert "cat" in mission
+        assert mission["cat"] is not None
+        assert mission["cat"]["id"] == obj_data["cat_id"]
 
 def test_mission_update():
     """Test updating a mission by ID."""
@@ -312,7 +319,6 @@ def test_mission_delete():
     response = client.get(f"/mission/{mission_id}")
     assert response.status_code == 404
 
-
 def test_mission_invalid_cat():
     """Test creating a mission with an invalid cat ID."""
     
@@ -327,6 +333,40 @@ def test_mission_invalid_cat():
     response = client.post("/mission/", json=obj_data)
     assert response.status_code == 404
     assert response.json() == {"detail": "SpyCat not found"}
+
+def test_spycat_read_with_missions():
+    """Test reading a spy cat with its missions."""
+    
+    cat_data = {
+        "name": "Shadow",
+        "years_of_experience": 10,
+        "breed": "Maine Coon",
+        "salary": 75000.0
+    }
+
+    response = client.post("/spycat/", json=cat_data)
+    assert response.status_code == 200
+    spycat_id = response.json()["id"]
+
+    mission_data = {
+        "cat_id": spycat_id,
+        "is_complete": False
+    }
+    response = client.post("/mission/", json=mission_data)
+    assert response.status_code == 200
+    mission_id = response.json()["id"]
+
+    response = client.get(f"/spycat/{spycat_id}")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["id"] == spycat_id
+    assert data["name"] == cat_data["name"]
+    assert data["years_of_experience"] == cat_data["years_of_experience"]
+    assert data["breed"] == cat_data["breed"]
+    assert data["salary"] == cat_data["salary"]
+    assert data["missions"] is not None
+    assert data["missions"][0]["id"] == mission_id
 
 def test_mission_invalid_target():
     """Test creating a mission with an invalid target."""
@@ -388,14 +428,18 @@ def test_target_read():
     obj_data = {
         "name": "Target1",
         "country": "Country1",
-        "is_complete": False
+        "is_complete": False,
+        "notes": [
+            {"content": "Note1"},
+            {"content": "Note2"}
+        ]
     }
 
     response = client.post(f"/mission/{mission_id}/target/", json=obj_data)
     assert response.status_code == 200
     target_id = response.json()["id"]
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}")
+    response = client.get(f"/target/{target_id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -403,6 +447,12 @@ def test_target_read():
     assert data["name"] == obj_data["name"]
     assert data["country"] == obj_data["country"]
     assert data["is_complete"] == obj_data["is_complete"]
+    assert "notes" in data
+    assert isinstance(data["notes"], list)
+    assert len(data["notes"]) == len(obj_data["notes"])
+    assert "mission" in data
+    assert data["mission"] is not None
+    assert data["mission"]["id"] == mission_id
 
 def test_target_read_all():
     """Test reading all targets for a mission."""
@@ -462,7 +512,7 @@ def test_target_update():
         "is_complete": True
     }
 
-    response = client.put(f"/mission/{mission_id}/target/{target_id}", json=updated_data)
+    response = client.put(f"/target/{target_id}", json=updated_data)
     assert response.status_code == 200
     data = response.json()
 
@@ -492,7 +542,7 @@ def test_target_delete():
     assert response.status_code == 200
     target_id = response.json()["id"]
 
-    response = client.delete(f"/mission/{mission_id}/target/{target_id}")
+    response = client.delete(f"/target/{target_id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -552,7 +602,7 @@ def test_note_create():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
     data = response.json()
 
@@ -583,11 +633,11 @@ def test_note_read():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
     note_id = response.json()["id"]
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}/note/{note_id}")
+    response = client.get(f"/note/{note_id}")
     assert response.status_code == 200
     data = response.json()
 
@@ -620,10 +670,10 @@ def test_note_read_all():
         note_data = {
             "content": f"This is note {i+1}."
         }
-        response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+        response = client.post(f"/target/{target_id}/note/", json=note_data)
         assert response.status_code == 200
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}/note/")
+    response = client.get(f"/target/{target_id}/note/")
     assert response.status_code == 200
     data = response.json()
     
@@ -656,7 +706,7 @@ def test_note_update():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
     note_id = response.json()["id"]
 
@@ -664,7 +714,7 @@ def test_note_update():
         "content": "This is an updated note."
     }
 
-    response = client.put(f"/mission/{mission_id}/target/{target_id}/note/{note_id}", json=updated_data)
+    response = client.put(f"/note/{note_id}", json=updated_data)
     assert response.status_code == 200
     data = response.json()
 
@@ -696,17 +746,17 @@ def test_note_delete():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
     note_id = response.json()["id"]
 
-    response = client.delete(f"/mission/{mission_id}/target/{target_id}/note/{note_id}")
+    response = client.delete(f"/note/{note_id}")
     assert response.status_code == 200
     data = response.json()
 
     assert data["id"] == note_id
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}/note/{note_id}")
+    response = client.get(f"/note/{note_id}")
     assert response.status_code == 404
 
 def test_note_cascade_target_delete():
@@ -734,13 +784,13 @@ def test_note_cascade_target_delete():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
 
-    response = client.delete(f"/mission/{mission_id}/target/{target_id}")
+    response = client.delete(f"/target/{target_id}")
     assert response.status_code == 200
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}/note/")
+    response = client.get(f"/target/{target_id}/note/")
     assert response.status_code == 404  # Notes should be deleted with the target
 
 def test_note_cascade_mission_delete():
@@ -767,11 +817,11 @@ def test_note_cascade_mission_delete():
         "content": "This is a test note."
     }
 
-    response = client.post(f"/mission/{mission_id}/target/{target_id}/note/", json=note_data)
+    response = client.post(f"/target/{target_id}/note/", json=note_data)
     assert response.status_code == 200
 
     response = client.delete(f"/mission/{mission_id}")
     assert response.status_code == 200
 
-    response = client.get(f"/mission/{mission_id}/target/{target_id}/note/")
+    response = client.get(f"/target/{target_id}/note/")
     assert response.status_code == 404  # Notes should be deleted with the mission

@@ -22,6 +22,10 @@ class SpyCatModel(BaseModel):
     breed: str
     salary: float = 0.0
 
+class SpyCatsCount(BaseModel):
+    spycats: list["SpyCatModel"]
+    all_count: int
+
 class SpyCatModelRead(SpyCatModel):
     missions: Optional[list["MissionModel"]] = None
 
@@ -56,6 +60,10 @@ class MissionModel(BaseModel):
     id: Optional[int] = None
     cat_id: Optional[int] = None
     is_complete: bool = False
+
+class MissionCount(BaseModel):
+    missions: list["MissionModelRead"]
+    all_count: int
 
 class MissionModelCreate(MissionModel):
     targets: Optional[list["TargetModel"]] = None

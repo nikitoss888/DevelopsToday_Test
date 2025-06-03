@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlmodel import Session, select
+from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, select, func
 from .database import create_db_and_tables, get_session
 from .models import \
-    SpyCat, SpyCatModel, SpyCatModelRead, \
-    Mission, MissionModel, MissionModelCreate, MissionModelRead, \
+    SpyCat, SpyCatModel, SpyCatModelRead, SpyCatsCount, \
+    Mission, MissionModel, MissionModelCreate, MissionModelRead, MissionCount, \
     Target, TargetModel, TargetModelCreate, TargetModelRead, \
     Note, NoteModel, NoteModelRead, \
     breed_validate, spycat_validate, target_validate, note_validate
@@ -17,6 +18,14 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
@@ -52,13 +61,18 @@ async def read_spycat(spycat_id: int, session: Session = Depends(get_session)):
         "missions": spycat.missions
     }
 
-@app.get("/spycat/", response_model=list[SpyCatModel])
+@app.get("/spycat/", response_model=SpyCatsCount)
 async def read_spycats(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all spy cats with pagination."""
     statement = select(SpyCat).offset(skip).limit(limit)
     spycats = session.exec(statement).all()
+
+    all_count = session.exec(select(func.count(SpyCat.id))).one()
     
-    return spycats
+    return {
+        "spycats": spycats,
+        "all_count": all_count
+    }
 
 @app.put("/spycat/{spycat_id}", response_model=SpyCat)
 async def update_spycat(spycat_id: int, spycat: SpyCatModel, session: Session = Depends(get_session)):
@@ -149,19 +163,24 @@ async def read_mission(mission_id: int, session: Session = Depends(get_session))
         "targets": mission.targets
     }
 
-@app.get("/mission/", response_model=list[MissionModelRead])
+@app.get("/mission/", response_model=MissionCount)
 async def read_missions(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all missions with pagination."""
     statement = select(Mission).offset(skip).limit(limit)
     missions = session.exec(statement).all()
 
-    return [
-        {
-            **mission.model_dump(),
-            "cat": mission.cat
-        }
-        for mission in missions
-    ]
+    all_count = session.exec(select(func.count(Mission.id))).one()
+
+    return {
+        "missions": [
+            {
+                **mission.model_dump(),
+                "cat": mission.cat
+            }
+            for mission in missions
+        ],
+        "all_count": all_count
+    }
 
 @app.put("/mission/{mission_id}", response_model=Mission)
 async def update_mission(mission_id: int, mission: MissionModel, session: Session = Depends(get_session)):

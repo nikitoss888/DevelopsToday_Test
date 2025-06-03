@@ -107,9 +107,12 @@ async def test_spycat_read_all():
     response = client.get("/spycat/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) >= num
+    assert isinstance(data["spycats"], list)
+    assert len(data["spycats"]) >= num
+    assert isinstance(data["all_count"], int)
+    assert data["all_count"] >= num
 
-    for cat in data:
+    for cat in data["spycats"]:
         if cat["id"] in ids:
             assert cat["name"].startswith("SpyCat")
             assert cat["years_of_experience"] >= 10
@@ -257,8 +260,12 @@ def test_mission_read_all():
     assert response.status_code == 200
     data = response.json()
     
-    assert len(data) > num
-    for mission in data:
+    assert isinstance(data["missions"], list)
+    assert len(data["missions"]) >= num
+    assert isinstance(data["all_count"], int)
+    assert data["all_count"] >= num
+
+    for mission in data["missions"]:
         assert "id" in mission
         assert "cat_id" in mission
         assert mission["cat_id"] == obj_data["cat_id"]

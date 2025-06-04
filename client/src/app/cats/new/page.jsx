@@ -1,4 +1,4 @@
-import NewCat from "./New";
+import NewCat from "./NewCat";
 
 export const metadata = {
     title: "Create New Spy Cat Agent",

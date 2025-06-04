@@ -1,4 +1,4 @@
-import EditCat from "./Edit";
+import EditCat from "./EditCat";
 import { use } from "react";
 
 export const metadata = {

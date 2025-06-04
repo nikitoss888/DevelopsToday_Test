@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 export default function CatPage({ params }) {
-    const { id } = params;
+    const { id } = use(params);
     console.log("CatPage params:", use(params));
     console.log("CatPage id:", id);
 

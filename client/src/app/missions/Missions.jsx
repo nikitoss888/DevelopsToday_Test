@@ -1,12 +1,11 @@
 "use client";
-import { getSpycatList } from "@/api/spycat";
+import { getMissionList } from "@/api/mission";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Pagination from "@/components/Pagination";
-import CatsListAccordion from "@/components/CatsListAccordion";
+import MissionsListAccordion from "@/components/MissionsListAccordion";
 
-
-export default function Cats() {
+export default function Missions() {
     const [loading, setLoading] = useState(true);
 
     const router = useRouter();
@@ -14,38 +13,40 @@ export default function Cats() {
     const searchParams = useSearchParams();
     console.log("Search Params:", searchParams.toString());
     const pageParam = searchParams.get("page") ? parseInt(searchParams.get("page"), 10) : 1;
-    const limitParam = searchParams.get("limit") ? parseInt(searchParams.get("limit"), 10) : 10;
+    const limitParam = searchParams.get("limit") ? parseInt(searchParams.get("limit"), 10) : 5;
 
-    const [cats, setCats] = useState([]);
+    const [missions, setMissions] = useState([]);
     const [page, setPage] = useState(pageParam);
     const [maxPage, setMaxPage] = useState(1);
     const [limit, setLimit] = useState(limitParam);
 
     useEffect(() => {
-        const fetchCats = async () => {
+        const fetchMissions = async () => {
             setLoading(true);
 
             try {
-                const res = await getSpycatList((page - 1) * limit, limit);
-                setCats(res["spycats"]);
+                const res = await getMissionList((page - 1) * limit, limit);
+                setMissions(res["missions"]);
                 setMaxPage(Math.ceil(res["all_count"] / limit));
+                console.log("Fetched missions:", res);
             } catch (error) {
-                console.error("Error fetching cats:", error);
+                console.error("Error fetching missions:", error);
+                alert("Failed to fetch missions: " + (error.content?.detail || "Unknown error"));
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchCats();
+        fetchMissions();
     }, [page, limit]);
-
+    
     if (loading) {
         return <div>Loading...</div>;
     }
 
     const onLimitChange = (e) => {
         const newLimit = parseInt(e.target.value, 10);
-        router.push(`/cats?page=1&limit=${newLimit}`, { scroll: false, shallow: true });
+        router.push(`/missions?page=1&limit=${newLimit}`, { scroll: false, shallow: true });
         setPage(1);
         setLimit(newLimit);
     };
@@ -55,12 +56,13 @@ export default function Cats() {
         if (newPage > maxPage) newPage = maxPage;
         setPage(newPage);
 
-        router.push(`/cats?page=${newPage}&limit=${limit}`, { scroll: false, shallow: true });
+
+        router.push(`/missions?page=${newPage}&limit=${limit}`, { scroll: false, shallow: true });
     };
 
     const onSubmit = (e) => {
         e.preventDefault();
-        router.push(`/cats?page=1&limit=${limit}`, { scroll: true, shallow: true });
+        router.push(`/missions?page=1&limit=${limit}`, { scroll: true, shallow: true });
         setPage(1);
     };
 
@@ -70,9 +72,9 @@ export default function Cats() {
                 Spy Cat Agency
             </h1>
             <a className="text-md text-center sm:text-left font-[var(--font-geist-mono)] bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-                href="/cats/new"
+                href="/missions/new"
             >
-                Add a new Spy Cat Agent
+                Add a new Mission
             </a>
             <div>
                 <form className="flex gap-4 mb-4 items-center" onSubmit={(e) => e.preventDefault()}>
@@ -103,17 +105,17 @@ export default function Cats() {
                 </form>
 
             </div>
-            { cats.length === 0 ? (
-                <p className="text-lg font-semibold">No cats found.</p>
+            { missions.length === 0 ? (
+                <p className="text-lg font-semibold">No missions found.</p>
             ) : (
-                <p className="text-lg font-semibold">List of Cat Agents:</p>
+                <p className="text-lg font-semibold">List of Missions:</p>
             )}
             <Pagination
                 currentPage={page}
                 totalPages={maxPage}
                 onPageChange={onPageChange}
             />
-            <CatsListAccordion cats={cats} />
+            <MissionsListAccordion missions={missions} />
             <Pagination
                 currentPage={page}
                 totalPages={maxPage}

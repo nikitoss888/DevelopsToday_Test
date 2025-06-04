@@ -12,11 +12,14 @@ export default function MissionsListAccordion({ missions }) {
                         </li>
                         {mission.cat ? (
                             <li className="text-md">
-                                <a href={`/cats/${mission.cat.id}`}>Assigned Cat: {mission.cat.name}</a>
+                                Assigned Cat: <a className="underline" href={`/cats/${mission.cat.id}`}>{mission.cat.name}</a>
                             </li>
                         ) : (
                             <li className="text-md">No cat assigned</li>
                         )}
+                        <li className="text-md">
+                            Status: <span className={`font-semibold ${mission.is_complete ? "text-green-500" : "text-red-500"}`}>{mission.is_complete ? "Completed" : "In Progress"}</span>
+                        </li>
                     </ul>
                 </AccordionItem>
             ))}

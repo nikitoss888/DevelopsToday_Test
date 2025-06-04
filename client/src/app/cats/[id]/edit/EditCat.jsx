@@ -2,7 +2,7 @@
 
 import { getSpycat, putSpycat } from "@/api/spycat";
 import CatForm from "@/components/CatForm";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 export default function EditCat({ id }) {
@@ -12,6 +12,7 @@ export default function EditCat({ id }) {
     const [salary, setSalary] = useState(0);
 
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
         const fetchCat = async () => {
@@ -27,6 +28,7 @@ export default function EditCat({ id }) {
                 console.log("Fetch:", data);
             } catch (error) {
                 console.error("Error fetching cat:", error);
+                alert(error.content?.detail || "Failed to fetch Spy Cat agent details.");
             } finally {
                 setLoading(false);
             }
@@ -58,14 +60,14 @@ export default function EditCat({ id }) {
 
                 console.log("Spy Cat agent updated:", res);
                 alert("Spy Cat agent updated successfully!");
+                router.push(`/cats/${id}`);
             } catch (error) {
                 console.error("Error updating Spy Cat agent:", error);
-                alert("Failed to update Spy Cat agent.");
+                alert("Failed to update Spy Cat agent: " + (error.content?.detail || "Unknown error"));
             }
         }
 
         postData();
-        redirect(`/cats/${id}`);
     }
 
     return (

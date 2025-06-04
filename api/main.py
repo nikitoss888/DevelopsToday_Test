@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlmodel import Session, select, func
 from .database import create_db_and_tables, get_session
 from .models import \
@@ -26,6 +27,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    """Custom exception handler for HTTP exceptions."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "headers": exc.headers if exc.headers else {}
+        }
+    )
 
 
 @app.get("/")
@@ -64,7 +76,13 @@ async def read_spycat(spycat_id: int, session: Session = Depends(get_session)):
 @app.get("/spycat/", response_model=SpyCatsCount)
 async def read_spycats(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all spy cats with pagination."""
-    statement = select(SpyCat).offset(skip).limit(limit)
+    statement = select(SpyCat)
+
+    if skip > 0:
+        statement = statement.offset(skip)
+    if limit > 0:
+        statement = statement.limit(limit)
+    
     spycats = session.exec(statement).all()
 
     all_count = session.exec(select(func.count(SpyCat.id))).one()
@@ -166,7 +184,13 @@ async def read_mission(mission_id: int, session: Session = Depends(get_session))
 @app.get("/mission/", response_model=MissionCount)
 async def read_missions(skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     """Read all missions with pagination."""
-    statement = select(Mission).offset(skip).limit(limit)
+    statement = select(Mission)
+
+    if skip > 0:
+        statement = statement.offset(skip)
+    if limit > 0:
+        statement = statement.limit(limit)
+
     missions = session.exec(statement).all()
 
     all_count = session.exec(select(func.count(Mission.id))).one()
@@ -256,13 +280,13 @@ async def create_target(mission_id: int, target: TargetModelCreate, session: Ses
     return db_target
 
 @app.get("/mission/{mission_id}/target/", response_model=list[Target])
-async def read_targets(mission_id: int, skip: int = 0, limit: int = 10, session: Session = Depends(get_session)):
-    """Read all targets for a mission with pagination."""
+async def read_targets(mission_id: int, session: Session = Depends(get_session)):
+    """Read all targets for a mission."""
     mission = session.get(Mission, mission_id)
     if not mission:
         raise HTTPException(status_code=404, detail="Mission not found")
 
-    return mission.targets[skip:skip + limit]
+    return mission.targets
 
 @app.get("/target/{target_id}", response_model=TargetModelRead)
 async def read_target(target_id: int, session: Session = Depends(get_session)):
@@ -310,6 +334,7 @@ async def delete_target(target_id: int, session: Session = Depends(get_session))
     return target
 
 
+# Note endpoints
 @app.post("/target/{target_id}/note/", response_model=Note)
 async def create_note(target_id: int, note: NoteModel, session: Session = Depends(get_session)):
     """Create a new note for a target."""
@@ -341,14 +366,14 @@ async def create_note(target_id: int, note: NoteModel, session: Session = Depend
 
 @app.get("/target/{target_id}/note/", response_model=list[Note])
 async def read_notes(
-    target_id: int, skip: int = 0, limit: int = 10, session: Session = Depends(get_session)
+    target_id: int, session: Session = Depends(get_session)
 ):
-    """Read all notes for a target with pagination."""
+    """Read all notes for a target."""
     target = session.get(Target, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
-    return target.notes[skip:skip + limit]
+    return target.notes
 
 @app.get("/note/{note_id}", response_model=NoteModelRead)
 async def read_note(
@@ -362,6 +387,7 @@ async def read_note(
     return {
         **note.model_dump(),
         "target": note.target,
+        "mission": note.target.mission
     }
 
 @app.put("/note/{note_id}", response_model=Note)

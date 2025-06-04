@@ -3,12 +3,15 @@
 import { postSpycat } from "@/api/spycat";
 import CatForm from "@/components/CatForm";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function NewCat() {
     const [name, setName] = useState("");
     const [yearsOfExperience, setYearsOfExperience] = useState(0);
     const [breed, setBreed] = useState("");
     const [salary, setSalary] = useState(0);
+
+    const router = useRouter();
 
     const onSubmit = (e) => {
         e.preventDefault();
@@ -37,6 +40,7 @@ export default function NewCat() {
                 
                 console.log("Spy Cat agent created:", res);
                 alert("Spy Cat agent created successfully! ID: " + res.id);
+                router.push(`/cats/${res.id}`);
             } catch (error) {
                 console.error("Error creating Spy Cat agent:", error);
                 alert("Failed to create Spy Cat agent.");

@@ -75,12 +75,12 @@ class MissionModelRead(MissionModelCreate):
 # Target database model
 class Target(SQLModel, table=True):
     id: Optional[int]         = Field(default=None, primary_key=True)
-    mission_id: Optional[int] = Field(default=None, foreign_key="mission.id", ondelete="CASCADE")
+    mission_id: int = Field(default=None, foreign_key="mission.id", ondelete="CASCADE")
     name: str                 = Field(index=True)
     country: str              = Field()
     is_complete: bool         = Field(default=False)
 
-    mission: Optional[Mission] = Relationship(back_populates="targets")
+    mission: Mission           = Relationship(back_populates="targets")
     notes: list["Note"]        = Relationship(back_populates="target", cascade_delete=True)
 
 # Pydantic model for target input validation
@@ -104,10 +104,10 @@ def target_validate(target: Target) -> bool:
 # Note database model
 class Note(SQLModel, table=True):
     id: Optional[int]        = Field(default=None, primary_key=True)
-    target_id: Optional[int] = Field(default=None, foreign_key="target.id", ondelete="CASCADE")
+    target_id: int           = Field(default=None, foreign_key="target.id", ondelete="CASCADE")
     content: str             = Field(sa_column=TEXT)
 
-    target: Optional[Target] = Relationship(back_populates="notes")
+    target: Target = Relationship(back_populates="notes")
 
 # Pydantic model for note input validation
 class NoteModel(BaseModel):
@@ -116,6 +116,7 @@ class NoteModel(BaseModel):
 
 class NoteModelRead(NoteModel):
     target: Optional[TargetModel] = None
+    mission: Optional[MissionModel] = None
 
 def note_validate(note: Note) -> bool:
     if not note.content:
